@@ -1,16 +1,47 @@
-/*e.buf.cheby.cheby(Array.geom(8, 1, 1));
-e.buf.delay = Buffer.alloc(e.slocal, 44100, 1);*/
-
 e.lets_go = {
   Routine {
+    e.buf.ringBuf = Buffer.alloc(s, 4096);
+
+    ~rev <<> ~micIn;
     ~klangs.clear;
     ~klangs.vol = 0.001;
     ~klangs.add(\klangs, 0, [\freq_bus, ~klang_freq.bus, \amp_bus, ~klang_amp.bus]);
 
-    ~lpc.clear;
-    ~lpc.ar(2);
-    ~lpc.add(\lpc, 0, [\in, ~micIn.bus, \source, ~klangs.bus]);
-    ~lpc.play(0, 2, vol: 0.01);
+    /* ~lpc.clear; */
+    /* ~lpc.ar(2); */
+    /* ~lpc = { Resonz.ar(~klangs.ar, LPF.kr(~lpc_analysis.kr, 10), 1, mul: Amplitude.kr(~micIn.ar, 0.01, 0.5)); }; */
+    /* ~rev <<> ~lpc; */
+
+    ~bufRecorder = { RecordBuf.ar(~micIn.ar, e.buf.ringBuf); };
+    ~bufRecorder.play(1, 1, vol: 0.0);
+
+    ~lpc_analysis = { VoxRes.kr(e.buf.ringBuf, 13, 12000.0 / s.options.sampleRate ); };
+
+    ~horribleSounds = { 
+      var filters = Resonz.ar(\in.ar, LPF.kr(~lpc_analysis.kr, 10), 1);
+      Splay.ar(filters * Amplitude.kr(~micIn.ar, 0.01, 0.5), 1);
+    };
+    ~horribleSounds <<> ~klangs;
+    ~horribleSounds.play(vol: 0.001);
+
+    ~moreHorribleSounds = { 
+      var filters = Resonz.ar(\in.ar, LPF.kr(~lpc_analysis.kr, 100), 1);
+      Splay.ar(filters, 1);
+    };
+    ~moreHorribleSounds <<> ~klangs;
+    ~moreHorribleSounds.play(0, 2, vol: 0.003);
+
+    ~yetmoreHorribleSounds = { 
+      var filters = Resonz.ar(\in.ar, LPF.kr(~lpc_analysis.kr, 100), 1);
+      Splay.ar(filters, 1);
+    };
+    ~yetmoreHorribleSounds <<> ~klangs;
+    ~yetmoreHorribleSounds.play(1, 2, vol: 0.01);
+
+    ~horribleSines = { 
+      Splay.ar(SinOsc.ar(LPF.kr(~lpc_analysis.kr, 100))); 
+    };
+    ~horribleSines.play(0, 1, vol: 0.005);
 
     ~rev = { FreeVerb.ar(~lpc.ar) };
     ~rev.play(1, 1, vol: 0.03);
@@ -30,7 +61,6 @@ e.lets_go = {
 
     ~samp_delay.ar(2);
     ~samp_delay = { [CombC.ar(\in.ar, 3.0, ~echo_phase.kr, 2.0), CombC.ar(\in.ar, 3.0, ~echo_phase.kr+0.1, 2.0)] };
-    // ~samp_delay = { [BufCombC.ar(e.buf.delay, \in.ar, 0.2, 0.1)
     ~samp_delay <<> ~sampler;
     ~samp_delay.play(vol: 1);
 
@@ -38,7 +68,7 @@ e.lets_go = {
     ~shaper = { Shaper.ar(e.buf.cheby, ~klangs.ar, 1, 0); };
     ~shaper_comp = { Compander.ar(~shaper.ar, ~shaper.ar, 0.1, 0.1, 0.1) };
     ~shaper_comp.fadeTime = 2.0;
-    ~shaper_comp.play(0, 2, fadeTime: 1, vol: 0.01);
+    ~shaper_comp.play(0, 2, fadeTime: 1, vol: 0.05);
     // ~shaper = { Shaper.ar(e.buf.cheby, ~micIn.ar, 1, 0); };
 
     // shaper playing
@@ -47,25 +77,42 @@ e.lets_go = {
 
     ~analysis_driver.clear;
     ~analysis_driver.kr;
-    ~analysis_driver.add(\driver_kr, 0, [\dur, e.buf.pitch_contour.numFrames / e.slocal.sampleRate, \step, 0.9/e.buf.pitch_contour.numFrames ]);
+    ~analysis_driver.add(\driver_kr, 0, [\dur, e.buf.pitch_contour.numFrames /
+      e.slocal.sampleRate, \step, 1.0/(4 * e.buf.pitch_contour.numFrames) ]);
 
     ~pitch_sample_player.clear;
-    ~pitch_sample_player.kr; ~pitch_sample_player.add(\sample_player_kr, 0, [\buf, e.buf.pitch_contour, \phase, ~analysis_driver.bus.asMap]);
+    ~pitch_sample_player.kr; 
+    ~pitch_sample_player.add(\sample_player_kr, 0, [\buf, e.buf.pitch_contour,
+      \phase, ~analysis_driver.bus.asMap]);
 
     ~amp_sample_player.clear;
     ~amp_sample_player.kr;
-    ~amp_sample_player.add(\sample_player_kr, 0, [\buf, e.buf.amp_contour, \phase, ~analysis_driver.bus.asMap]);
+    ~amp_sample_player.add(\sample_player_kr, 0, [\buf, e.buf.amp_contour,
+      \phase, ~analysis_driver.bus.asMap]);
+
+    ~voice_sample_player.clear;
+    ~voice_sample_player.kr;
+    ~voice_sample_player.add(\sample_player_kr, 0, [\buf, e.buf.voice, \phase,
+      ~analysis_driver.bus.asMap]);
+
+    ~zero_crosser.clear;
+    ~zero_crosser.ar(1);
+    ~zero_crosser.add(\zero_crosser, 0, [\amp, ~amp_sample_player.bus.asMap, \in, ~voice_sample_player.bus]);
+    ~zero_crosser.play(0, 1, fadeTime: 1, vol: 0.15);
 
     ~amp_scaler.clear;
     ~amp_scaler.kr;
-    ~amp_scaler.add(\linear_scale_kr, 0, [\in, ~amp_sample_player.bus.asMap, \inMin, -1.0, \inMax, 1, \outMin, 0, \outMax, 1]);
+    ~amp_scaler.add(\linear_scale_kr, 0, [\in, ~amp_sample_player.bus.asMap,
+      \inMin, -1.0, \inMax, 1, \outMin, 0, \outMax, 1]);
 
     ~pitch_scaler.clear;
     ~pitch_scaler.kr;
-    ~pitch_scaler.add(\linear_scale_kr, 0, [\in, ~pitch_sample_player.bus.asMap, \inMin, -1.0, \inMax, 1.0, \outMin, e.min, \outMax, e.max]);
+    ~pitch_scaler.add(\linear_scale_kr, 0, [\in, ~pitch_sample_player.bus.asMap,
+      \inMin, -1.0, \inMax, 1.0, \outMin, e.min, \outMax, e.max]);
 
     ~synth_driver.clear;
-    ~synth_driver.add(\driver, 0, [\dur, e.buf.voice.numFrames / e.slocal.sampleRate]);
+    ~synth_driver.add(\driver, 0, [\dur, e.buf.voice.numFrames /
+      e.slocal.sampleRate]);
 
     // ~driver_monitor.kr;
     // ~driver_monitor.add(\a2k_patch, [\in, ~.bus]);
@@ -131,6 +178,7 @@ e.lets_go = {
 
   }.value;
 
+  /* ==== Update the vertical line ==== */
   AppClock.sched(0, {
     ~analysis_driver.bus.get({ |val|
       var loc;
@@ -142,6 +190,7 @@ e.lets_go = {
     0.05;
   });
 
+  /* ==== Update pitch and send to David ==== */
   AppClock.sched(0, {
     var new_pitch, cond, freq, base_index, freq_array, amp;
     freq = ~pitch_scaler.bus.getSynchronous;
@@ -165,7 +214,3 @@ e.lets_go = {
   });
   e.proxy_space.gui;
 };
-
-// e.lremote.sendMsg('pitch/current', 0, "whatevs");
-
-[e.samplerRate, e.samplerPan].postln;

@@ -132,7 +132,7 @@ e.analyze = {
       });
     });
 
-    if (self.networked == true, {
+    if (e.networked == true, {
       e.buf.voice.loadToFloatArray(action: {
         Buffer.sendCollection(e.sremote, e.record_plot_data, action: {
           |buf|

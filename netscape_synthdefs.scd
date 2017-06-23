@@ -122,6 +122,12 @@ SynthDef(\lpc, {
   Out.ar(out, env * lpc);
 }).add(\blue_lagoon);
 
+SynthDef(\zero_crosser, {
+  arg in, out, amp = 1.0;
+  Out.ar(out, SinOsc.ar(80) * EnvGen.ar(Env.perc(0.01, 0.5, amp),
+    Trig.kr(In.kr(in))));
+}).add(\blue_lagoon);
+
 SynthDef(\a2k_patch, {
   arg in, out;
   Out.kr(out, A2K.kr(In.ar(in)));

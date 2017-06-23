@@ -4,20 +4,20 @@ Steps:
 1. Boot server:
 */
 
+(
 o = Server.local.options;
 ServerOptions.inDevices;
-Server.local.options.sampleRate = 44100;
-Server.local.options.numAudioBusChannels = 256;
-Server.local.options.numOutputBusChannels = 8;
-Server.local.options.numInputBusChannels = 8;
-/* Server.local.options.outDevice = "EDIROL UA-25EX"; */
-/* Server.local.options.inDevice = "EDIROL UA-25EX"; */
-Server.local.options.inDevice = "Built-in Input";
-Server.local.options.outDevice = "Built-in Output";
-// Server.local.options.maxLogins = 2;
+o.sampleRate = 44100;
+o.numAudioBusChannels = 256;
+o.numOutputBusChannels = 2; o.numInputBusChannels = 2;
+o.inDevice = "Saffire"; o.outDevice = "Saffire";
+o.maxLogins = 2;
 Server.local.boot;
-Server.local.quit;
 Server.local.meter;
+)
+
+/* For quitting the server */
+Server.local.quit;
 
 /*
 2. Execute the following code:
@@ -30,23 +30,24 @@ e = Environment[
   // Initialize things that need to refer to self
   'init' -> {
     arg self;
-    self['llocal'] = NetAddr.new("alice.local", NetAddr.langPort);
 
     if (self.networked == true, {
+      self['llocal'] = NetAddr.new("alice.local", NetAddr.langPort);
       self['david'] = NetAddr.new("croquemonsieur.local", 57110);
       self['sremote'] = Server(\David, self.david);
       self['lremote'] = NetAddr.new("croquemonsieur.local", 57120);
       self['lremote'].sendMsg('/test/hellodavid', "This is a message, hi");
     });
 
-    self['chromatic'] = Scale.new(self.chromatic_degrees, 48, self.piano_study);
-    self['triads'] = Scale.new(self.triads_degrees, 48, self.piano_study);
-    self['major'] = Scale.new(self.major_degrees, 48, self.piano_study);
-    self['current_scale'] = self['chromatic'];
+    self['chromatic'] = Scale.new(self.chromatic_degrees, 12, self.et);
+    self['triads'] = Scale.new(self.triads_degrees, 12, self.et);
+    self['major'] = Scale.new(self.major_degrees, 12, self.et);
+    /* self['current_scale'] = self['chromatic']; */
+    self['current_scale'] = Scale.chromatic(self.piano_study);
 
     self['buf'].put(\pitch_transfer, self.fill_transfer);
     self['buf'].put(\cheby, Buffer.alloc(self.slocal, 512, 1).cheby(Array.geom(8, 1, 1)));
-    self['buf'].put(\voice, Buffer.alloc(self.slocal, self.slocal.sampleRate * 20, completionMessage: {
+    self['buf'].put(\voice, Buffer.alloc(self.slocal, self.slocal.sampleRate * 8, completionMessage: {
       |buf|
       buf.fill(0, self.slocal.sampleRate * 20, 0);
     }));
@@ -56,6 +57,7 @@ e = Environment[
   },
 
   'slocal' -> Server.local,
+  'et' -> Tuning.et,
 
   'buf' -> (),
   'root' -> 36.midicps,
@@ -103,7 +105,8 @@ e = Environment[
 
   // Fills the quantizing buffer function
   'fill_transfer' -> {
-    arg self, min = self.min, max = self.max, base = 48, scale = self.chromatic, tuning = self.piano_study, server = self.slocal;
+    arg self, min = self.min, max = self.max, base = 48, scale = self.chromatic, 
+      tuning = self.piano_study, server = self.slocal;
     var lookup, transfer, range, minQuant, maxQuant;
 
     range = max - min;
@@ -125,24 +128,24 @@ e.know = true;
 e.networked = false;
 e.init;
 
-this.executeFile("/Users/acsmith/workspaces/music/blue_lagoon/blue_lagoon_analyze.scd");
-this.executeFile("/Users/acsmith/workspaces/music/blue_lagoon/blue_lagoon_synthdefs.sc");
-this.executeFile("/Users/acsmith/workspaces/music/blue_lagoon/blue_lagoon_scratch.scd");
+this.executeFile("/Users/acsmith/workspaces/music/blue_lagoon/netscape_analyze.scd");
+this.executeFile("/Users/acsmith/workspaces/music/blue_lagoon/netscape_synthdefs.scd");
+this.executeFile("/Users/acsmith/workspaces/music/blue_lagoon/netscape_scratch.scd");
+this.executeFile("/Users/acsmith/workspaces/music/blue_lagoon/netscape_offline.scd");
 
-// // Audio buses
-// ~source = NodeProxy.audio(e.slocal, 1);
-// ~sample_driver = NodeProxy.audio(e.slocal, 1);
-// ~sines = NodeProxy.audio(e.slocal, 1);
-// ~shaped = NodeProxy.audio(e.slocal, 1);
-// ~out = NodeProxy.audio(e.slocal, 2);
-//
-// // Data tracking buses
-// ~pitch = NodeProxy.control(e.slocal, 1);
-// ~pitch_unscaled = NodeProxy.control(e.slocal, 1);
-// ~amp = NodeProxy.control(e.slocal, 1);
-// ~amp_unscaled = NodeProxy.control(e.slocal, 1);
-// ~driver_monitor = NodeProxy.control(e.slocal, 1);
-// ~pitch_driver = NodeProxy.control(e.slocal, 1);
+// Audio buses
+~source = NodeProxy.audio(e.slocal, 1);
+~sample_driver = NodeProxy.audio(e.slocal, 1);
+~sines = NodeProxy.audio(e.slocal, 1);
+~shaped = NodeProxy.audio(e.slocal, 1);
+~out = NodeProxy.audio(e.slocal, 2);
+// Data tracking buses
+~pitch = NodeProxy.control(e.slocal, 1);
+~pitch_unscaled = NodeProxy.control(e.slocal, 1);
+~amp = NodeProxy.control(e.slocal, 1);
+~amp_unscaled = NodeProxy.control(e.slocal, 1);
+~driver_monitor = NodeProxy.control(e.slocal, 1);
+~pitch_driver = NodeProxy.control(e.slocal, 1);
 ~klang_freq = NodeProxy.control(e.slocal, 7);
 ~klang_amp = NodeProxy.control(e.slocal, 7);
 
@@ -151,9 +154,4 @@ this.executeFile("/Users/acsmith/workspaces/music/blue_lagoon/blue_lagoon_scratc
 ~klang_freq = Array.geom(10, 50, 1.5);
 
 )
-e.chord.wrapAt(3)
-e.slocal.prepareForRecord;
-e.slocal.record;
-e.slocal.stopRecording;
 
-e.lets_go.value;
